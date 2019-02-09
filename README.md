@@ -1,2 +1,2 @@
 # learn_wip
-Store everything I learn
+Store stuffs on data analysis.
