@@ -110,7 +110,7 @@ We can finally plot the drop-out probability
 
     ## Picking joint bandwidth of 0.000736
 
-![](dropout_files/figure-markdown_strict/unnamed-chunk-7-1.png) Here we
+![](unnamed-chunk-7-1.png) Here we
 see that the students in two years VET education have higher probability
 of drop-out rate, whereas students in general education this probability
 is much lower. We see that there is a lot more of uncertainty in the
