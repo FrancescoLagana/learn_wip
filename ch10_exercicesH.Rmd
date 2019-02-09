@@ -1,0 +1,248 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(rethinking)
+```
+
+```{r}
+data("bangladesh")
+d <- bangladesh
+d$district_id <- as.integer(as.factor(d$district))
+table(d$district_id)
+```
+
+```{r}
+table(d$use.contraception)
+```
+
+there are 60 values, contiguous integers 1 to 60.
+Now, focus on predicting use.contraception, clustered by district_id. Do not include
+urban just yet. Fit both (1) a traditional fixed-effects model that uses dummy variables for district
+and (2) a multilevel model with varying intercepts for district. Plot the predicted proportions of
+women in each district using contraception, for both the fixed-effects model and the varying-effects
+model. That is, make a plot in which district ID is on the horizontal axis and expected proportion
+using contraception is on the vertical. Make one plot for each model, or layer them on the same
+plot, as you prefer. How do the models disagree? Can you explain the pattern of disagreement? In
+particular, can you explain the most extreme cases of disagreement, both why they happen where
+they do and why the models reach different inferences?
+
+```{r}
+parpool <- map2stan(
+  alist(
+    use.contraception ~ dbinom(1, p),
+    logit(p) <- a_district[district_id],
+    a_district[district_id] ~ dnorm(a, sigma),
+    a ~ dnorm(0, 10),
+    sigma ~ dcauchy(0, 2)
+    ), data = d, cores = 2, iter = 2000, warmup = 1000, chains = 2
+)
+
+fixef <- map2stan(
+  alist(
+    use.contraception ~ dbinom(1, p),
+    logit(p) <- a_district[district_id],
+    a_district[district_id] ~ dnorm(0, 10)
+  ), data = d, cores = 2, iter = 2000, warmup = 1000, chains = 2 
+)
+```
+
+
+```{r}
+plot(parpool)
+```
+
+```{r}
+pos1 <- extract.samples(parpool)
+parpool_dis <- logistic(apply(pos1$a_district, 2, mean))
+
+pos2 <- extract.samples(fixef)
+parpool_fe <- logistic(apply(pos2$a_district, 2, mean))
+
+library(dplyr)
+to <- d %>% group_by(district_id) %>% summarise(n = n())
+to <- data.frame(to)
+das <- data.frame(vi = parpool_dis, fe = parpool_fe, district_id = to$district_id, n = to$n)
+
+das <- das %>% arrange(n)
+
+```
+
+```{r}
+plot(1:60, parpool_dis, pch= 16 ,col = rangi2, ylim = c(0, 1))
+points(parpool_fe)
+points(to$n, pch = 16, col = "black")
+abline(h = logistic(median(pos1$a)), lty = 2)
+```
+
+```{r}
+p.link <- function(data,  district ) {
+logodds <- with( data ,
+a_district[,district] 
+)
+return( logistic(logodds) )
+}
+
+pred.raw1 <- sapply( 1:60 , function(i) p.link(pos1, i) )
+pred.p <- apply( pred.raw1 , 2 , mean )
+
+
+
+pred.raw2 <- sapply( 1:60 , function(i) p.link(pos2, i) )
+pred.q <- apply( pred.raw2 , 2 , mean )
+
+
+```
+
+
+```{r}
+plot(1:60, pred.p, pch= 16 ,col = rangi2, ylim = c(0, 1))
+points(pred.q)
+points(to$n, pch = 16, col = "black")
+abline(h = logistic(median(pos1$a)), lty = 2)
+```
+
+12H2. Return to the Trolley data, data(Trolley), from Chapter 11. Define and fit a varying intercepts
+model for these data. Cluster intercepts on individual participants, as indicated by the unique
+values in the id variable. Include action, intention, and contact as ordinary terms. Compare
+the varying intercepts model and a model that ignores individuals, using both WAIC and posterior
+predictions. What is the impact of individual variation in these data?
+
+```{r}
+library(rethinking)
+data("Trolley")
+d <- Trolley
+str(d)
+```
+
+
+
+```{r}
+# Aggiungere le ovariate:
+m11.1map <- map2stan(
+	alist(
+	response ~ dordlogit(phi, cutpoints),
+	phi <- bA*action + bI*intention + bC*contact,
+	c(bA, bI, bC) ~ dnorm(0,10),
+	cutpoints ~ dnorm(0,10)),
+	data=d,
+	start=list(cutpoints=c(-2,-1,0,1,2,2.5)) ,
+	chains=2 , cores=2 )
+	
+
+precis(m11.1map)
+
+```
+
+
+```{r}
+# Aggiungere le covariate:
+
+d$id_s <- as.integer(as.factor(d$id))
+sort(unique(d$id_s))
+
+#HMC estimation avec STAN
+m11.1stan <- map2stan(
+	alist(
+	response ~ dordlogit( phi , cutpoints ),
+	phi <-a[id_s] + bA*action + bI*intention + bC*contact,
+	c(bA, bI, bC) ~ dnorm(0,10),
+	a[id_s] ~ dnorm(0, sigma),
+	sigma ~ dcauchy(0, 2),
+	cutpoints ~ dnorm(0,10)),
+	data=d,
+	start=list(cutpoints=c(-2,-1,0,1,2,2.5)) ,
+	chains=2 , cores=2 )
+	
+
+```
+
+```{r}
+compare(m11.1stan, m11.1map)
+```
+
+```{r}
+post <- extract.samples(m11.1stan)
+dens(post$sigma, show.HPDI = 0.89)
+```
+
+
+```{r}
+logit <- function(x) log(1/(1-x))
+
+post <- data.frame(extract.samples(m11.1stan)) 
+sim.actor <- t(sapply(1:100, function(i) {
+sim_a_actor <- rnorm( 1000 , 0 , post$sigma[i] )
+p <- data.frame(post[i,])
+
+p <- rordlogit(1000, a = as.numeric(p[1:6]),
+  phi =  sim_a_actor + post$bA * 0 + post$bI * 1 + post$bC * 0
+
+)
+
+}))
+
+dim(sim.actor)
+
+dvaf <- apply(sim.actor, 2, mean)
+plot(sim.actor, ylim = c(1, 7))
+```
+
+
+```{r}
+d_pred <- data.frame(
+response=7, #### needed so sim knows num levels
+action=0,
+intention=1,
+contact=0,
+id_s=1:331 #### 331 unique individuals
+)
+response <- sim(m11.1stan,data=d_pred)
+str(response)
+```
+
+12H3. The Trolley data are also clustered by story, which indicates a unique narrative for each
+vignette. Define and fit a cross-classified varying intercepts model with both id and story. Use the
+same ordinary terms as in the previous problem. Compare this model to the previous models. What
+do you infer about the impact of different stories on responses?
+
+```{r}
+
+
+d$id_s <- as.integer(as.factor(d$id))
+sort(unique(d$id_s))
+
+d$story_id <- as.integer(as.factor(d$story))
+sort(unique(d$story_id))
+
+#HMC estimation avec STAN
+m11.1stan <- map2stan(
+	alist(
+	response ~ dordlogit( phi , cutpoints ),
+	phi <-a_id[id_s] + a_story[story_id] + bA*action + bI*intention + bC*contact,
+	c(bA, bI, bC) ~ dnorm(0,10),
+	a_story[story_id] ~ dnorm(0, sigma_story),
+	a_id[id_s] ~ dnorm(0, sigma_id),
+	sigma_id ~ dcauchy(0, 2),
+	sigma_story ~ dcauchy(0, 2),
+	cutpoints ~ dnorm(0,10)),
+	data=d,
+	start=list(cutpoints=c(-2,-1,0,1,2,2.5)) ,
+	chains=2 , cores=2 )
+	
+
+```
+
+```{r}
+compare(m11.1stan, m12.1stan)
+```
+
+```{r}
+precis(m11.1stan)
+post <- extract.samples(m11.1stan)
+
+dens(post$sigma_story, xlim=c(0, 4))
+dens(post$sigma_id, add= T)
+```
+
