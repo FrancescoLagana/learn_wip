@@ -168,7 +168,7 @@ drop-out rates in specialized schools and VET education:
 
     ## Picking joint bandwidth of 0.00112
 
-![](dropout_files/figure-markdown_strict/unnamed-chunk-10-1.png) As for
+![](unnamed-chunk-10-1.png) As for
 the difference between three years VET and specialized schools, that
 there is 98% probability that this difference is greater than 0.
 Concerning the difference between four years VET and specialized
