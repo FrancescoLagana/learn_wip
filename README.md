@@ -1,2 +1,5 @@
 # learn_wip
-Store stuffs on data analysis.
+Programming
+Data manipulation
+Data visualisation
+Statistical inference
