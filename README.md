@@ -1,5 +1,5 @@
-# learn_wip
-Programming
-Data manipulation
-Data visualisation
-Statistical inference
+# learn_data
+- Programming
+- Data manipulation
+- Data visualisation
+- Statistical inference
